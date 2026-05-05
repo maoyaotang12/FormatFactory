@@ -13,15 +13,14 @@ source=(git+$url.git)
 sha256sums=('SKIP')
 
 build() {
-    cd "${srcdir}/${pkgname}"
-    cmake -B build -DCMAKE_INSTALL_PREFIX=/usr
+    cd "${srcdir}/FormatFactory"
+    cmake -B build -DCMAKE_INSTALL_PREFIX=/usr -DCMAKE_BUILD_TYPE=Release
     make -C build
 }
 
 package() {
-    cd "${srcdir}/${pkgname}"
-    make -C build DESTDIR="${pkgdir}" install
-
+    cd "${srcdir}/FormatFactory"
+    install -Dm755 build/FormatFactory "${pkgdir}/usr/bin/FormatFactory"
     install -Dm644 "${pkgname}.desktop" "${pkgdir}/usr/share/applications/${pkgname}.desktop"
     install -Dm644 "FormatFactory.svg" "${pkgdir}/usr/share/icons/hicolor/scalable/apps/${pkgname}.svg"
     install -Dm644 "LICENSE" "$pkgdir"/usr/share/licenses/$pkgname/LICENSE
