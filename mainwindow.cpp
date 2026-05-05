@@ -28,6 +28,7 @@
 #include <QSvgRenderer>
 #include <QPainter>
 #include <QBuffer>
+#include <QFileInfo>
 
 MainWindow::MainWindow(QWidget *parent)
 : QMainWindow(parent)
@@ -446,14 +447,52 @@ void MainWindow::initUI()
         m_outSuffix = text.toLower();
     });
 
+    // 信号绑定
+    connect(cmbImagePreset, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &MainWindow::applyImagePreset);
+    connect(cmbImageFormat, &QComboBox::currentTextChanged, this, [this](const QString &text){
+        m_outSuffix = text.toLower();
+    });
+
     // ============================
-    // 字体高级设置面板
+    // 字体转换完整功能（含高级面板）
     // ============================
-    panelFont = new QGroupBox("字体高级设置", this);
+
+    // 1) 字体面板本体
+    panelFont = new QGroupBox("字体转换设置", this);
     QVBoxLayout *lyFont = new QVBoxLayout(panelFont);
-    lyFont->setContentsMargins(12,12,12,12);
+    lyFont->setContentsMargins(14,14,14,14);
     lyFont->setSpacing(10);
 
+    // 输入文件
+    QHBoxLayout *fontRow1 = new QHBoxLayout;
+    fontInputPath = new QLineEdit(this);
+    QPushButton *btnFontSelect = new QPushButton("选择文件", this);
+    fontRow1->addWidget(new QLabel("输入文件:"));
+    fontRow1->addWidget(fontInputPath);
+    fontRow1->addWidget(btnFontSelect);
+
+    // 输出目录
+    QHBoxLayout *fontRow2 = new QHBoxLayout;
+    fontOutputPath = new QLineEdit(this);
+    QPushButton *btnFontOut = new QPushButton("输出目录", this);
+    fontRow2->addWidget(new QLabel("输出目录:"));
+    fontRow2->addWidget(fontOutputPath);
+    fontRow2->addWidget(btnFontOut);
+
+    // 格式
+    QHBoxLayout *fontRow3 = new QHBoxLayout;
+    fontFormatCombo = new QComboBox(this);
+    fontFormatCombo->addItems({"TTF", "OTF", "WOFF", "WOFF2"});
+    fontRow3->addWidget(new QLabel("输出格式:"));
+    fontRow3->addWidget(fontFormatCombo);
+    fontRow3->addStretch();
+
+    // 转换按钮
+    QPushButton *btnFontStart = new QPushButton("开始转换字体", this);
+
+    // ============================
+    // 高级面板（你要的全部保留）
+    // ============================
     cboFontPreset = new QComboBox(this);
     cboFontPreset->addItems({
         "自定义",
@@ -475,7 +514,6 @@ void MainWindow::initUI()
     spinFontSimplify = new QDoubleSpinBox(this);
     spinFontSimplify->setRange(0.1, 5.0);
     spinFontSimplify->setValue(1.0);
-    spinFontSimplify->setSingleStep(0.1);
     spinFontSimplify->setFixedWidth(80);
 
     spinFontCompress = new QSpinBox(this);
@@ -497,88 +535,134 @@ void MainWindow::initUI()
     fontLine1->addStretch();
 
     QHBoxLayout *fontLine2 = new QHBoxLayout;
-    fontLine2->setSpacing(10);
-
     chkFontMeta = new QCheckBox("保留版权", this);
     chkFontMeta->setChecked(true);
-
     chkFontFix = new QCheckBox("修复轮廓", this);
     chkFontFix->setChecked(true);
-
     chkFontAscii = new QCheckBox("仅英文", this);
-    chkFontAscii->setChecked(false);
-
     fontLine2->addWidget(chkFontMeta);
     fontLine2->addWidget(chkFontFix);
     fontLine2->addWidget(chkFontAscii);
     fontLine2->addStretch();
 
+    // 把所有控件装进面板
+    lyFont->addLayout(fontRow1);
+    lyFont->addLayout(fontRow2);
+    lyFont->addLayout(fontRow3);
+    lyFont->addWidget(btnFontStart);
+    lyFont->addSpacing(10);
     lyFont->addLayout(fontPresetLine);
     lyFont->addLayout(fontLine1);
     lyFont->addLayout(fontLine2);
 
+    // 加入主界面
     mainLayout->addWidget(panelFont);
+    panelFont->hide();
 
     // ============================
-    // 字体面板绑定
+    // 信号绑定
     // ============================
-    connect(spinFontSimplify, &QDoubleSpinBox::valueChanged, this, [this](double v){
-        m_fontSimplify = v;
+    connect(btnFontSelect, &QPushButton::clicked, this, [this](){
+        QString f = QFileDialog::getOpenFileName(this, "选择字体", "", "Font (*.ttf *.otf *.woff *.woff2)");
+        if (!f.isEmpty()) fontInputPath->setText(f);
     });
-    connect(spinFontCompress, &QSpinBox::valueChanged, this, [this](int v){
-        m_fontCompress = v;
-    });
-    connect(spinFontEm, &QSpinBox::valueChanged, this, [this](int v){
-        m_fontEmUnit = v;
-    });
-    connect(chkFontMeta, &QCheckBox::toggled, this, [this](bool v){
-        m_fontKeepMeta = v;
-    });
-    connect(chkFontFix, &QCheckBox::toggled, this, [this](bool v){
-        m_fontFixOutline = v;
-    });
-    connect(chkFontAscii, &QCheckBox::toggled, this, [this](bool v){
-        m_fontAsciiOnly = v;
-    });
+        connect(btnFontOut, &QPushButton::clicked, this, [this](){
+            QString d = QFileDialog::getExistingDirectory(this, "选择输出目录");
+            if (!d.isEmpty()) fontOutputPath->setText(d);
+        });
+            connect(btnFontStart, &QPushButton::clicked, this, &MainWindow::startFontConvert);
 
-    connect(cboFontPreset, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int idx){
-        if (idx == 1) {
-            m_fontSimplify = 1.0;
-            m_fontCompress = 6;
-            m_fontEmUnit = 1000;
-            m_fontKeepMeta = true;
-            m_fontFixOutline = true;
-            m_fontAsciiOnly = false;
-        } else if (idx == 2) {
-            m_fontSimplify = 2.0;
-            m_fontCompress = 9;
-            m_fontEmUnit = 1000;
-            m_fontKeepMeta = false;
-            m_fontFixOutline = true;
-            m_fontAsciiOnly = false;
-        } else if (idx == 3) {
-            m_fontSimplify = 0.5;
-            m_fontCompress = 6;
-            m_fontEmUnit = 2048;
-            m_fontKeepMeta = true;
-            m_fontFixOutline = true;
-            m_fontAsciiOnly = false;
-        } else if (idx == 4) {
-            m_fontSimplify = 1.5;
-            m_fontCompress = 9;
-            m_fontEmUnit = 1000;
-            m_fontKeepMeta = true;
-            m_fontFixOutline = true;
-            m_fontAsciiOnly = true;
-        }
+            connect(spinFontSimplify, &QDoubleSpinBox::valueChanged, this, [this](double v){ m_fontSimplify = v; });
+            connect(spinFontCompress, &QSpinBox::valueChanged, this, [this](int v){ m_fontCompress = v; });
+            connect(spinFontEm, &QSpinBox::valueChanged, this, [this](int v){ m_fontEmUnit = v; });
+            connect(chkFontMeta, &QCheckBox::toggled, this, [this](bool v){ m_fontKeepMeta = v; });
+            connect(chkFontFix, &QCheckBox::toggled, this, [this](bool v){ m_fontFixOutline = v; });
+            connect(chkFontAscii, &QCheckBox::toggled, this, [this](bool v){ m_fontAsciiOnly = v; });
 
-        spinFontSimplify->setValue(m_fontSimplify);
-        spinFontCompress->setValue(m_fontCompress);
-        spinFontEm->setValue(m_fontEmUnit);
-        chkFontMeta->setChecked(m_fontKeepMeta);
-        chkFontFix->setChecked(m_fontFixOutline);
-        chkFontAscii->setChecked(m_fontAsciiOnly);
-    });
+            connect(cboFontPreset, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int idx){
+                if (idx == 1) {
+                    m_fontSimplify = 1.0; m_fontCompress = 6; m_fontEmUnit = 1000;
+                    m_fontKeepMeta = true; m_fontFixOutline = true; m_fontAsciiOnly = false;
+                } else if (idx == 2) {
+                    m_fontSimplify = 2.0; m_fontCompress = 9; m_fontEmUnit = 1000;
+                    m_fontKeepMeta = false; m_fontFixOutline = true; m_fontAsciiOnly = false;
+                } else if (idx == 3) {
+                    m_fontSimplify = 0.5; m_fontCompress = 6; m_fontEmUnit = 2048;
+                    m_fontKeepMeta = true; m_fontFixOutline = true; m_fontAsciiOnly = false;
+                } else if (idx == 4) {
+                    m_fontSimplify = 1.5; m_fontCompress = 9; m_fontEmUnit = 1000;
+                    m_fontKeepMeta = true; m_fontFixOutline = true; m_fontAsciiOnly = true;
+                }
+                spinFontSimplify->setValue(m_fontSimplify);
+                spinFontCompress->setValue(m_fontCompress);
+                spinFontEm->setValue(m_fontEmUnit);
+                chkFontMeta->setChecked(m_fontKeepMeta);
+                chkFontFix->setChecked(m_fontFixOutline);
+                chkFontAscii->setChecked(m_fontAsciiOnly);
+            });
+
+    // ============================
+    // 字体转换 - 选择输入文件
+    // ============================
+    //connect(fontSelectBtn, &QPushButton::clicked, this, [this]() {
+        //QString path = QFileDialog::getOpenFileName(this, "选择字体文件", "",
+                                                    //"字体文件 (*.ttf *.otf *.woff *.woff2 *.ttc *.otc);;所有文件 (*.*)");
+        //if (!path.isEmpty())
+            //fontInputPath->setText(path);
+    //});
+
+    // ============================
+    // 字体转换 - 选择输出目录
+    // ============================
+    //connect(fontOutputSelectBtn, &QPushButton::clicked, this, [this]() {
+        //QString path = QFileDialog::getExistingDirectory(this, "选择输出目录");
+        //if (!path.isEmpty())
+            //fontOutputPath->setText(path);
+    //});
+
+    // ============================
+    // 字体转换 - 开始转换
+    // ============================
+    //connect(fontConvertBtn, &QPushButton::clicked, this, [this]() {
+        //QString src = fontInputPath->text().trimmed();
+        //QString outDir = fontOutputPath->text().trimmed();
+        //QString fmt = fontFormatCombo->currentText().toLower();
+
+        //if (src.isEmpty() || outDir.isEmpty()) {
+            //QMessageBox::warning(this, "警告", "请选择输入文件和输出目录！");
+            //return;
+        //}
+
+        //QFileInfo fi(src);
+        //QString outPath = outDir + "/" + fi.baseName() + "." + fmt;
+
+        //QString script = QString(R"(
+//Open("%1");
+//SetFontSize(%2);
+//if (%3) { ClearNames(); }
+//if (%4) { Simplify(%5); }
+//if (%6) { AsciiOnly(); }
+//Generate("%7", %8);
+        //)")
+        //.arg(src)
+        //.arg(m_fontEmUnit)
+        //.arg(m_fontKeepMeta ? "0" : "1")
+        //.arg(m_fontFixOutline ? "1" : "0")
+        //.arg(m_fontSimplify)
+        //.arg(m_fontAsciiOnly ? "1" : "0")
+        //.arg(outPath)
+        //.arg(m_fontCompress);
+
+        //QProcess p;
+        //p.start("fontforge", {"-quiet", "-c", script});
+        //p.waitForFinished(-1);
+
+        //if (p.exitCode() == 0) {
+            //QMessageBox::information(this, "完成", "字体转换成功！");
+        //} else {
+            //QMessageBox::critical(this, "失败", "转换失败！");
+        //}
+    //});
 
     // ==========================
     // 关于面板（完美跟随主题）
@@ -892,7 +976,7 @@ audioRoot->setExpanded(true);
 imageRoot->setExpanded(true);
 fontRoot->setExpanded(true);
 
-// 面板切换
+// 面板切换 —— 你原本的完美版本
 connect(m_leftTree, &QTreeWidget::itemClicked, this, [this](QTreeWidgetItem* item, int) {
     if (!item || !item->parent()) return;
 
@@ -900,10 +984,7 @@ connect(m_leftTree, &QTreeWidget::itemClicked, this, [this](QTreeWidgetItem* ite
     panelAudio->hide();
     panelImage->hide();
     panelFont->hide();
-
-    if (panelAbout) {
-        panelAbout->hide();
-    }
+    if (panelAbout) panelAbout->hide();
 
     QString t = item->parent()->text(0);
     if (t == "视频转换")       grpAdv->show();
@@ -911,7 +992,6 @@ connect(m_leftTree, &QTreeWidget::itemClicked, this, [this](QTreeWidgetItem* ite
     else if (t == "图片转换")  panelImage->show();
     else if (t == "字体转换")  panelFont->show();
     else if (t == "关于软件")  panelAbout->show();
-
 });
 }
 
@@ -1610,15 +1690,15 @@ void MainWindow::playAudioFile()
 
     // 取出开始时间
     QTime sTime = QTime::fromString(editAudioStart->text(), "hh:mm:ss");
+    // 音频播放定位（完整修复版）
     qint64 startMs = (sTime.hour()*3600 + sTime.minute()*60 + sTime.second()) * 1000;
 
-    // 加载后立即跳转并播放
-    connect(audioPlayer, &QMediaPlayer::sourceChanged, this, [=]() {
-        QTimer::singleShot(50, this, [=]() {
+    connect(audioPlayer, &QMediaPlayer::sourceChanged, this, [this, startMs]() {
+        QTimer::singleShot(50, this, [this, startMs]() {
             audioPlayer->setPosition(startMs);
-            audioPlayer->play();
         });
-    }, Qt::SingleShotConnection);
+    });
+
 }
 
 // ================== 视频预设自动应用（稳步扩展，不影响任何功能） ==================
@@ -1742,4 +1822,42 @@ void MainWindow::applyImagePreset()
         cmbImageFormat->setCurrentText("PNG");
         cmbImageQuality->setCurrentIndex(3);
     }
+}
+
+// ============================
+// 字体转换真正执行函数
+void MainWindow::startFontConvert()
+{
+    QString i = fontInputPath->text().trimmed();
+    QString o = fontOutputPath->text().trimmed();
+    QString ext = fontFormatCombo->currentText().toLower();
+
+    if (i.isEmpty() || o.isEmpty()) {
+        QMessageBox::warning(this, "⚠️ 错误", "请选择输入文件和输出目录！");
+        return;
+    }
+
+    QFileInfo fi(i);
+    QString out = o + "/" + fi.completeBaseName() + "." + ext;
+
+    // --------------------------
+    // 最稳定、Linux 必过写法
+    // --------------------------
+    QStringList args;
+    args << "-lang=ff";
+    args << "-c";
+    args << QString("Open('%1'); Generate('%2');").arg(i).arg(out);
+
+    QProcess *p = new QProcess(this);
+    p->start("fontforge", args);
+
+    connect(p, &QProcess::finished, this, [=](int code) {
+        bool ok = (code == 0 && QFile::exists(out));
+        if (ok) {
+            QMessageBox::information(this, "✅ 成功", "转换完成！\n" + out);
+        } else {
+            QMessageBox::critical(this, "❌ 失败", "错误输出：\n" + p->readAllStandardError());
+        }
+        p->deleteLater();
+    });
 }

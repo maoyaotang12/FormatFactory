@@ -50,6 +50,7 @@ private slots:
     void playAudioFile();
     void applyVideoPreset();
     void applyImagePreset();
+    void startFontConvert();
 
 private:
     void initUI();
@@ -117,6 +118,14 @@ private:
     QComboBox *cmbRotate;   // 新增
     QComboBox *cmbFlip;
     QComboBox *cmbImageEffect;
+
+    // 字体转换控件
+    QLineEdit *fontInputPath;
+    QLineEdit *fontOutputPath;
+    QComboBox *fontFormatCombo;
+    QPushButton *fontSelectBtn;
+    QPushButton *fontOutputSelectBtn;
+    QPushButton *fontConvertBtn;
 
     // ==========================
     // 字体高级面板（无错误版）
