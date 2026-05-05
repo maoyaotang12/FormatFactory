@@ -1,0 +1,11 @@
+[Desktop Entry]
+Name=万能格式转换器
+Comment=基于 FFmpeg + Qt + OpenCV + FontForge 的全能格式转换工具
+Exec=FormatFactory
+Icon=formatfactory
+Terminal=false
+Type=Application
+Categories=AudioVideo;Audio;Video;Utility;Qt;
+Keywords=format;factory;converter;video;audio;image;font;ffmpeg
+StartupWMClass=FormatFactory
+MimeType=video/*;audio/*;image/*;application/font-sfnt;application/font-ttf;
