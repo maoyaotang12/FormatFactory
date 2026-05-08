@@ -2,7 +2,7 @@
 
 pkgname=formatfactory
 pkgver=1.0.1
-pkgrel=1
+pkgrel=2
 pkgdesc="万能格式转换器 - 视频/音频/图片/字体 一键转换"
 arch=('x86_64')
 url="https://github.com/maoyaotang12/FormatFactory"
